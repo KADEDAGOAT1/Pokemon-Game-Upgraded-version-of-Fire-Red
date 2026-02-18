@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Pokémon-Style Game</title>
+  <title>Reverse Start Pokémon Game</title>
   <style>
     body {
       background: black;
@@ -19,25 +19,28 @@
   </style>
 </head>
 <body>
-
-<canvas id="game" width="320" height="320"></canvas>
-
+<canvas id="game" width="640" height="480"></canvas>
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-
 const TILE = 32;
-let mode = "map";
 
-const player = { x: 5, y: 5, hp: 20 };
-const wild = { hp: 15 };
+// Game modes: lab -> battle
+let mode = "lab";
+let selectedStarter = null;
+let battleMessage = "";
 
+// Player and Rival
+const player = { x: 4, y: 4, hp: 20, team: [] };
+const rival = { x: 6, y: 4, hp: 20, team: [] };
+
+// Lab Map (door exists but locked)
 const map = [
   "GGGGGGGGGG",
   "G........G",
   "G..GGGG..G",
   "G........G",
-  "G....G...G",
+  "G....D...G", // D = door
   "G........G",
   "G..GGGG..G",
   "G........G",
@@ -45,81 +48,160 @@ const map = [
   "GGGGGGGGGG"
 ];
 
-function drawMap() {
-  for (let y = 0; y < map.length; y++) {
-    for (let x = 0; x < map[y].length; x++) {
-      ctx.fillStyle = map[y][x] === "G" ? "green" : "darkgreen";
-      ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
-    }
-  }
-}
+// All starters Gen1–9
+const starters = [
+  {name:"Bulbasaur", type:"Grass", curve:"Medium Slow"},
+  {name:"Charmander", type:"Fire", curve:"Medium Slow"},
+  {name:"Squirtle", type:"Water", curve:"Medium Slow"},
+  {name:"Chikorita", type:"Grass", curve:"Medium Slow"},
+  {name:"Cyndaquil", type:"Fire", curve:"Medium Slow"},
+  {name:"Totodile", type:"Water", curve:"Medium Slow"},
+  {name:"Treecko", type:"Grass", curve:"Medium Slow"},
+  {name:"Torchic", type:"Fire", curve:"Medium Slow"},
+  {name:"Mudkip", type:"Water", curve:"Medium Slow"},
+  {name:"Turtwig", type:"Grass", curve:"Medium Slow"},
+  {name:"Chimchar", type:"Fire", curve:"Medium Slow"},
+  {name:"Piplup", type:"Water", curve:"Medium Slow"},
+  {name:"Snivy", type:"Grass", curve:"Medium Slow"},
+  {name:"Tepig", type:"Fire", curve:"Medium Slow"},
+  {name:"Oshawott", type:"Water", curve:"Medium Slow"},
+  {name:"Chespin", type:"Grass", curve:"Medium Slow"},
+  {name:"Fennekin", type:"Fire", curve:"Medium Slow"},
+  {name:"Froakie", type:"Water", curve:"Medium Slow"},
+  {name:"Rowlet", type:"Grass", curve:"Medium Slow"},
+  {name:"Litten", type:"Fire", curve:"Medium Slow"},
+  {name:"Popplio", type:"Water", curve:"Medium Slow"},
+  {name:"Grookey", type:"Grass", curve:"Medium Slow"},
+  {name:"Scorbunny", type:"Fire", curve:"Medium Slow"},
+  {name:"Sobble", type:"Water", curve:"Medium Slow"},
+  {name:"Sprigatito", type:"Grass", curve:"Medium Slow"},
+  {name:"Fuecoco", type:"Fire", curve:"Medium Slow"},
+  {name:"Quaxly", type:"Water", curve:"Medium Slow"}
+];
 
-function drawPlayer() {
+// Shift every EXP curve down one tier
+const curveShift = {"Slow":"Medium Slow","Medium Slow":"Medium","Medium":"Fast","Fast":"Fast"};
+
+// --- Draw lab ---
+function drawLab() {
+  ctx.fillStyle = "lightblue";
+  ctx.fillRect(0,0,640,480);
+  ctx.fillStyle = "black";
+  ctx.fillText("Professor Oak: Choose your starter!", 20, 20);
+  ctx.fillText("Gary is here too.", 20, 35);
+
+  for(let i=0;i<starters.length;i++){
+    const x = 10 + (i%5)*120;
+    const y = 60 + Math.floor(i/5)*150;
+    ctx.fillStyle = "green";
+    ctx.fillRect(x, y, 100, 100);
+    ctx.fillStyle = "white";
+    ctx.fillText(starters[i].name, x+10, y+110);
+  }
+
+  // Player and rival
   ctx.fillStyle = "red";
   ctx.fillRect(player.x*TILE, player.y*TILE, TILE, TILE);
-}
+  ctx.fillStyle = "blue";
+  ctx.fillRect(rival.x*TILE, rival.y*TILE, TILE, TILE);
 
-function drawBattle() {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0,0,320,320);
-
+  // Door
+  ctx.fillStyle = "brown";
+  ctx.fillRect(4*TILE,4*TILE,TILE,TILE);
   ctx.fillStyle = "white";
-  ctx.fillText("WILD MONSTER APPEARED!", 60, 50);
-  ctx.fillText("Your HP: " + player.hp, 40, 200);
-  ctx.fillText("Wild HP: " + wild.hp, 200, 100);
-  ctx.fillText("Press A to ATTACK", 70, 280);
+  ctx.fillText("Door", 4*TILE, 4*TILE-2);
 }
 
-function tryEncounter() {
-  if (map[player.y][player.x] === "G" && Math.random() < 0.2) {
-    wild.hp = 15;
-    mode = "battle";
-  }
-}
+// --- Starter selection ---
+canvas.addEventListener("click", function(e){
+  if(mode!=="lab") return;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
 
-document.addEventListener("keydown", e => {
-  if (mode === "map") {
-    let nx = player.x;
-    let ny = player.y;
+  for(let i=0;i<starters.length;i++){
+    const x = 10 + (i%5)*120;
+    const y = 60 + Math.floor(i/5)*150;
+    if(mouseX>=x && mouseX<=x+100 && mouseY>=y && mouseY<=y+100){
+      selectedStarter = starters[i];
+      const curve = curveShift[selectedStarter.curve] || selectedStarter.curve;
+      player.team.push({name:selectedStarter.name,type:selectedStarter.type,level:5,exp:0,curve:curve});
 
-    if (e.key === "ArrowUp") ny--;
-    if (e.key === "ArrowDown") ny++;
-    if (e.key === "ArrowLeft") nx--;
-    if (e.key === "ArrowRight") nx++;
+      // Determine rival's starter: next gen and weak to player
+      const rivalIndex = (i + 3) % starters.length; // pick next-gen type (roughly)
+      let rivalType = starters[rivalIndex].type;
+      // Simple weakness logic
+      if(selectedStarter.type==="Grass") rivalType="Fire";
+      if(selectedStarter.type==="Fire") rivalType="Water";
+      if(selectedStarter.type==="Water") rivalType="Grass";
 
-    if (map[ny][nx] !== undefined) {
-      player.x = nx;
-      player.y = ny;
-      tryEncounter();
+      rival.team.push({name:starters[rivalIndex].name,type:rivalType,level:5,exp:0,curve:curveShift[starters[rivalIndex].curve] || starters[rivalIndex].curve});
+
+      battleMessage = `You chose ${selectedStarter.name}! Gary chose ${rival.team[0].name}!`;
+      mode = "battle";
+      return;
     }
-  } 
-  else if (mode === "battle" && e.key.toLowerCase() === "a") {
-    wild.hp -= 5;
-    if (wild.hp <= 0) {
-      mode = "map";
+  }
+});
+
+// --- Movement ---
+document.addEventListener("keydown", function(e){
+  if(mode!=="lab") return;
+  let nx = player.x;
+  let ny = player.y;
+  if(e.key==="ArrowUp") ny--;
+  if(e.key==="ArrowDown") ny++;
+  if(e.key==="ArrowLeft") nx--;
+  if(e.key==="ArrowRight") nx++;
+
+  if(nx<0 || nx>19 || ny<0 || ny>14) return;
+  const tile = map[ny] && map[ny][nx];
+  if(tile==="G" || tile===".") player.x=nx,player.y=ny;
+  else if(tile==="D") alert("Gary: Where are you going?! Pallet Town is off limits!");
+});
+
+// --- Simple battle ---
+function battleStep(){
+  if(!player.team[0] || !rival.team[0]) return;
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,640,480);
+  ctx.fillStyle="white";
+  ctx.fillText(battleMessage,20,20);
+  ctx.fillText(`Your ${player.team[0].name} vs Gary's ${rival.team[0].name}`,20,40);
+  ctx.fillText("Press A to attack",20,60);
+}
+
+// Attack event
+document.addEventListener("keydown", function(e){
+  if(mode!=="battle") return;
+  if(e.key.toLowerCase()==="a"){
+    const dmg = Math.floor(Math.random()*5)+5;
+    rival.team[0].hp -= dmg;
+    battleMessage = `Your ${player.team[0].name} hits for ${dmg} damage!`;
+    if(rival.team[0].hp<=0){
+      battleMessage += `\nYou defeated Gary!`;
+      mode="lab"; // for now, return to lab after battle
     } else {
-      player.hp -= 3;
-      if (player.hp <= 0) {
-        alert("You fainted!");
-        location.reload();
+      const dmg2=Math.floor(Math.random()*5)+4;
+      player.team[0].hp -= dmg2;
+      battleMessage += `\nGary's ${rival.team[0].name} hits for ${dmg2} damage!`;
+      if(player.team[0].hp<=0){
+        battleMessage+="\nYou fainted!";
+        mode="lab";
       }
     }
   }
 });
 
-function gameLoop() {
-  ctx.clearRect(0,0,320,320);
-  if (mode === "map") {
-    drawMap();
-    drawPlayer();
-  } else {
-    drawBattle();
-  }
+// --- Draw ---
+function gameLoop(){
+  ctx.clearRect(0,0,640,480);
+  if(mode==="lab") drawLab();
+  if(mode==="battle") battleStep();
   requestAnimationFrame(gameLoop);
 }
 
 gameLoop();
 </script>
-
 </body>
 </html>
