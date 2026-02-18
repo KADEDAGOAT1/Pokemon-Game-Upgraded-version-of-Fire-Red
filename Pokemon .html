@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pokémon-Style Game</title>
+  <style>
+    body {
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+      font-family: monospace;
+    }
+    canvas {
+      border: 4px solid white;
+      image-rendering: pixelated;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="game" width="320" height="320"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const TILE = 32;
+let mode = "map";
+
+const player = { x: 5, y: 5, hp: 20 };
+const wild = { hp: 15 };
+
+const map = [
+  "GGGGGGGGGG",
+  "G........G",
+  "G..GGGG..G",
+  "G........G",
+  "G....G...G",
+  "G........G",
+  "G..GGGG..G",
+  "G........G",
+  "G........G",
+  "GGGGGGGGGG"
+];
+
+function drawMap() {
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[y].length; x++) {
+      ctx.fillStyle = map[y][x] === "G" ? "green" : "darkgreen";
+      ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
+    }
+  }
+}
+
+function drawPlayer() {
+  ctx.fillStyle = "red";
+  ctx.fillRect(player.x*TILE, player.y*TILE, TILE, TILE);
+}
+
+function drawBattle() {
+  ctx.fillStyle = "black";
+  ctx.fillRect(0,0,320,320);
+
+  ctx.fillStyle = "white";
+  ctx.fillText("WILD MONSTER APPEARED!", 60, 50);
+  ctx.fillText("Your HP: " + player.hp, 40, 200);
+  ctx.fillText("Wild HP: " + wild.hp, 200, 100);
+  ctx.fillText("Press A to ATTACK", 70, 280);
+}
+
+function tryEncounter() {
+  if (map[player.y][player.x] === "G" && Math.random() < 0.2) {
+    wild.hp = 15;
+    mode = "battle";
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (mode === "map") {
+    let nx = player.x;
+    let ny = player.y;
+
+    if (e.key === "ArrowUp") ny--;
+    if (e.key === "ArrowDown") ny++;
+    if (e.key === "ArrowLeft") nx--;
+    if (e.key === "ArrowRight") nx++;
+
+    if (map[ny][nx] !== undefined) {
+      player.x = nx;
+      player.y = ny;
+      tryEncounter();
+    }
+  } 
+  else if (mode === "battle" && e.key.toLowerCase() === "a") {
+    wild.hp -= 5;
+    if (wild.hp <= 0) {
+      mode = "map";
+    } else {
+      player.hp -= 3;
+      if (player.hp <= 0) {
+        alert("You fainted!");
+        location.reload();
+      }
+    }
+  }
+});
+
+function gameLoop() {
+  ctx.clearRect(0,0,320,320);
+  if (mode === "map") {
+    drawMap();
+    drawPlayer();
+  } else {
+    drawBattle();
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
